@@ -1,0 +1,56 @@
+#!/usr/bin/env ruby
+#%# family=auto
+#%# capabilities=autoconf suggest
+#
+# Delayed Job Queue
+# Copyright (c) 2009 Courtenay Gasking
+# Simple munin plugin to fetch a value from your status page and
+# render it as a graph. Your rails action should look something like
+# 
+# class StatusController < ActionController::Base
+#   def queue_size
+#     render :text => Delayed::Job.count
+#   end
+# end
+#
+require 'open-uri'
+
+# You should customize the warning and critical levels.
+def config
+  name = $0.scan(/thin_(\d+)/) && $1
+  config = <<__CONFIG
+graph_title Delayed::Job queue size
+graph_vlabel Entries
+graph_category Rails
+entries.label Entries
+entries.warning 200
+entries.critical 300
+graph_info Number of records in the Delayed::Job table
+__CONFIG
+end
+
+case ARGV[0]
+  when 'config'
+    puts config
+    exit 0
+  when 'autoconf'
+    # todo: check for rails :/
+    # todo: better way of checking status?
+    if open("http://127.0.0.1/status/queue_size").status == ["200", "OK"]
+      puts 'yes'
+      exit 0
+    else
+      puts 'no'
+      exit 1
+    end
+  when 'suggest'
+    puts "rails_queue"
+  else # [""]
+    size = open("http://127.0.0.1/queue_size").read
+    if size =~ /^\d+$/ # todo: better way of checking return value; just to_i it?
+      puts "entries.value #{size}"
+    else
+      puts "entries.value U"
+    end    
+    exit 0
+end

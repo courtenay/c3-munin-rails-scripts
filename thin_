@@ -1,0 +1,63 @@
+#!/usr/bin/env ruby
+#%# family=auto
+#%# capabilities=autoconf suggest
+#
+# Thin Memory Usage
+# Copyright (c) 2009 Courtenay Gasking
+#
+# Munin plugin to look for Thin processes and monitor their memory usage.
+# Uses the response from `ps auwx` to determine usage.
+#
+# This script should play nicely with munin-node-configure, correctly 
+# setting up / suggesting the correct symlinks for you. You may like to
+# modify the memory.warning / memory.critical lines to suit your own
+# app's memory usage profile.
+#
+# Todo: plot all thin memory usage on a single graph, instead of on a series
+# of graphs. Not entirely sure how to do this (if a thin goes down, it'll be
+# removed from the graph and things will break?)
+
+def config
+  name = $0.scan(/thin_(\d+)/) && $1
+  config = <<__CONFIG
+graph_title Thin #{name} memory usage
+graph_vlabel Bytes
+graph_category Rails
+memory.label RSS
+memory.warning 200000000
+memory.critical 300000000
+graph_info Memory used by thin instance
+__CONFIG
+end
+
+def find_thins
+  cmd = `ps auwx | grep -P "thin\\.\\d"`
+end
+
+case ARGV[0]
+  when 'config'
+    puts config
+    exit 0
+  when 'autoconf'
+    if thins = find_thins && find_thins.size > 0
+      puts 'yes'
+      exit 0
+    else
+      # Not idea, but if we can't find any thins, then we can't suggest 'em for you.
+      puts 'no'
+      exit 1
+    end
+  when 'suggest'
+    thins = find_thins.scan(/thin\.(\d+)\.sock/)
+    thins.each { |thin| puts thin }
+  else # [""]
+    thins = find_thins.split("\n")
+    name = $0.scan(/thin_(\d+)/)
+    thin = thins.detect { |line| line =~ /thin\.#{name}\.sock/ } 
+    if thin.nil?
+      puts "memory.value U"
+    else
+      puts "memory.value #{thin.split[5].to_i * 1024}"
+    end
+    exit 0
+end
