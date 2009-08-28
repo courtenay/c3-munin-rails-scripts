@@ -1,0 +1,58 @@
+#!/usr/bin/env ruby
+#%# family=auto
+#%# capabilities=autoconf suggest
+#
+# WWW Timer
+# Copyright (c) 2009 Courtenay Gasking
+#
+# Munin plugin to grab a website (via curl) and record the time it took
+# for a response.
+#
+# Symlink plugin to www_time_www_yoursite_com or modify "figure_url" method for your own custom url.
+
+require 'open3'
+
+def config
+  name = $0.scan(/mongrel_(\d+)/) && $1
+  config = <<__CONFIG
+graph_title Response time for http://#{figure_url}
+graph_vlabel Milliseconds
+graph_category Rails
+time.label Time (ms)
+time.warning 1000
+time.critical 3000
+graph_info Response time for grabbing a site
+__CONFIG
+end
+
+def figure_url
+  # Replace this with "www.whatever.com" for your own site or URL
+  $0.gsub(/.*www_time_/, '').gsub('_','.')
+end
+
+def request(url)
+  cmd = Open3.popen3 "time curl http://#{url}"
+end
+
+case ARGV[0]
+  when 'config'
+    puts config
+    exit 0
+  when 'autoconf'
+    if `which curl`.empty?
+      puts 'no'
+      exit 1
+    else
+      puts 'yes'
+      exit 0
+    end
+  #when 'suggest'
+  #  mongrels = find_mongrels.scan(/mongrel\.(\d+)\.pid/)
+  #  mongrels.each { |mongrel| puts mongrel }
+  else # [""]
+    url = figure_url
+    stdin,stdout,stderr = request(url)
+    time = stderr.read.scan(/(\d+\.\d+) real/)[0][0].to_f
+    puts "time.value #{time}"
+    exit 0
+end
