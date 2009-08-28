@@ -1,0 +1,63 @@
+#!/usr/bin/env ruby
+#%# family=auto
+#%# capabilities=autoconf suggest
+#
+# Mongrel Memory Usage
+# Copyright (c) 2009 Courtenay Gasking
+#
+# Munin plugin to look for Mongrel processes and monitor their memory usage.
+# Uses the response from `ps auwx` to determine usage.
+#
+# This script should play nicely with munin-node-configure, correctly 
+# setting up / suggesting the correct symlinks for you. You may like to
+# modify the memory.warning / memory.critical lines to suit your own
+# app's memory usage profile.
+#
+# Todo: plot all Mongrel memory usage on a single graph, instead of on a series
+# of graphs. Not entirely sure how to do this (if a Mongrel goes down, it'll be
+# removed from the graph and things will break?)
+
+def config
+  name = $0.scan(/mongrel_(\d+)/) && $1
+  config = <<__CONFIG
+graph_title Mongrel #{name} memory usage
+graph_vlabel Bytes
+graph_category Rails
+memory.label RSS
+memory.warning 200000000
+memory.critical 300000000
+graph_info Memory used by mongrel instance
+__CONFIG
+end
+
+def find_mongrels
+  cmd = `ps auwx | grep -P "mongrel\\.\\d"`
+end
+
+case ARGV[0]
+  when 'config'
+    puts config
+    exit 0
+  when 'autoconf'
+    if mongrels = find_mongrels && find_mongrels.size > 0
+      puts 'yes'
+      exit 0
+    else
+      # Not idea, but if we can't find any mongrels, then we can't suggest 'em for you.
+      puts 'no'
+      exit 1
+    end
+  when 'suggest'
+    mongrels = find_mongrels.scan(/mongrel\.(\d+)\.pid/)
+    mongrels.each { |mongrel| puts mongrel }
+  else # [""]
+    mongrels = find_mongrels.split("\n")
+    name = $0.scan(/mongrel_(\d+)/)
+    mongrel = mongrels.detect { |line| line =~ /mongrel\.#{name}\.pid/ } 
+    if mongrel.nil?
+      puts "memory.value U"
+    else
+      puts "memory.value #{mongrel.split[5].to_i * 1024}"
+    end
+    exit 0
+end
